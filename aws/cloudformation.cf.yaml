@@ -1,0 +1,122 @@
+# A cloudformation for creating a serverless pangeo
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+
+###############################################################################
+Resources:
+###############################################################################
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: serverless-pangeo
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: []
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceRole
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies: []
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+  CloudWatchLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /pangeo/serverless
+      RetentionInDays: 90
+
+  # TODO: VPCs
+
+  NotebookSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: PangeoNotebook
+      GroupDescription: Access to Jupyter Notebooks
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 0
+          ToPort: 65535
+          IpProtocol: tcp
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          FromPort: 8888
+          ToPort: 8888
+          IpProtocol: tcp
+      # TODO: Replace with dynamic VPC
+      VpcId: vpc-e8ea0981
+
+  NotebookTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Volumes: []
+      Cpu: "1024"
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      Family: jupyter-notebook
+      Memory: "4096"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: notebook
+          Command:
+            - jupyter
+            - lab
+          Cpu: 1024
+          Environment: []
+          Essential: true
+          Image: 536099501702.dkr.ecr.eu-west-2.amazonaws.com/pangeo-notebook:0.5.10
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: eu-west-2
+              awslogs-group: !Ref CloudWatchLogs
+              awslogs-stream-prefix: notebook
+              awslogs-create-group: 'true'
+          Memory: 4096
+          MemoryReservation: 4096
+
+  # TODO: Lambda app
+
+###############################################################################
+Outputs:
+###############################################################################
+
+  ECSClusterArn:
+    Value: !GetAtt ECSCluster.Arn
+    Description: Arn of the ECS cluster.
+
+  SecurityGroup:
+    Value: !Ref NotebookSecurityGroup
+    Description: Security group.
+
+  NotebookTaskDefinitionArn:
+    Value: !Ref NotebookTaskDefinition
+    Description: Arn of the task definition.

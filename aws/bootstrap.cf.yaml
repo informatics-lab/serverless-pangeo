@@ -1,0 +1,23 @@
+# A cloudformation for bootstrapping the deployment.
+# Creates resources required to create the other resources.
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+
+###############################################################################
+Resources:
+###############################################################################
+
+  S3CodeBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: serverless-pangeo-hub-code
+
+
+###############################################################################
+Outputs:
+###############################################################################
+
+  CodeBucketName:
+    Value: !Ref 'S3CodeBucket'
+    Description: Name of the Amazon S3 bucket for storing code.
